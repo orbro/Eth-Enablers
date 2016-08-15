@@ -1,0 +1,242 @@
+data owner
+data total_spins
+data total_coins_bet
+data total_coins_won
+
+data rounds[2^160](player, block, bet, result, entropy, status)
+data players[2^160](last_round)
+
+# status:
+# 0 = new
+# 1 = spinning
+# 2 = done
+
+# constants
+
+macro ETHER():
+    10 ** 18
+
+macro REEL_COUNT():
+    3
+
+macro REEL_POSITIONS():
+    32
+
+macro ROW_COUNT():
+    3
+
+def init():
+    self.owner = msg.sender
+
+def spin(bet):
+    if bet != 1 and bet != 3 and bet != 5:
+        return(0)  # invalid number of lines
+
+    if msg.value / ETHER() != bet:
+        return(0)  # value doesn't match bet
+
+    current_round = self.total_spins + 1
+    self.rounds[current_round].player = msg.sender
+    self.rounds[current_round].block = block.number
+    self.rounds[current_round].bet = bet
+    self.rounds[current_round].status = 1
+    self.players[msg.sender].last_round = current_round
+    self.total_spins += 1
+    self.total_coins_bet += bet
+
+    return(1)
+
+def claim(round):
+    if self.rounds[round].status != 1:
+        return(90)  # invalid status
+
+    if self.rounds[round].player != msg.sender:
+        return(91)  # you can only claim your own rounds
+
+    target_block = self.rounds[round].block
+
+    if block.number <= target_block:
+        return(92)  # not yet ready
+
+    if block.number > target_block + 255:
+        return(93)  # out of range
+
+    # calculate entropy. hex("sleth") == 0x736c657468
+    entropy = sha3([blockhash(target_block), round, 0x736c657468], items=3)
+
+    if entropy == 0:
+        return(94) # invalid entropy
+
+    # set entropy and rnd
+    self.rounds[round].entropy = entropy
+    rnd = mod(entropy, REEL_POSITIONS() * REEL_POSITIONS() * REEL_POSITIONS())
+
+    playing_lines = self.rounds[round].bet
+
+    result = self.calc_reward(rnd, playing_lines)
+    self.rounds[round].result = result
+    self.rounds[round].status = 2
+
+    if result > 0:
+        self.total_coins_won += result
+        send(msg.sender, result * ETHER())
+
+    log(msg.sender, data=[round])
+
+    return(1)
+
+def get_round(round):
+    return([self.rounds[round].player, self.rounds[round].block, self.rounds[round].bet, self.rounds[round].result, self.rounds[round].entropy, self.rounds[round].status]:arr)
+
+def get_current_round():
+    return(self.players[msg.sender].last_round)
+
+def get_stats():
+    return([self.total_spins, self.total_coins_bet, self.total_coins_won]:arr)
+
+macro MATCH_PAYOUT($s):
+   byte($s + 21, match_payout)
+
+macro PAYOUT_UPS():
+    6  # Any 3 Ups
+
+macro PAYOUT_DOWNS():
+    2  # Any 3 Downs
+
+# checks if symbol is 1Up, 2Up or 3Up
+macro IS_UP($s):
+    ($s == 1 or $s == 2 or $s == 3)
+
+# checks if symbol is 1Down, 2Down or 3Down
+macro IS_DOWN($s):
+    ($s == 5 or $s == 6 or $s == 7)
+
+def calc_line(s1, s2, s3):
+    # match_payout[0]  =  50 == 0x32  # AlienHead
+    # match_payout[1]  =  10 == 0x0a  # 1Up
+    # match_payout[2]  =  15 == 0x0f  # 2Up
+    # match_payout[3]  =  20 == 0x14  # 3Up
+    # match_payout[4]  =  25 == 0x19  # OrangeRed
+    # match_payout[5]  =   8 == 0x08  # 1Down
+    # match_payout[6]  =   6 == 0x06  # 2Down
+    # match_payout[7]  =   4 == 0x04  # 3Down
+    # match_payout[8]  = 250 == 0xfa  # CakeDay
+    # match_payout[9]  =  75 == 0x4b  # Bacon
+    # match_payout[10] = 100 == 0x64  # Narwhal
+    match_payout = 0x320a0f1419080604fa4b64
+
+    # perfect match
+    if s1 == s2 and s2 == s3:
+        return(MATCH_PAYOUT(s1))
+
+    # special case #1: triple ups
+    if IS_UP(s1) and IS_UP(s2) and IS_UP(s3):
+        return(PAYOUT_UPS())
+
+    # special case #2: triple down
+    if IS_DOWN(s1) and IS_DOWN(s2) and IS_DOWN(s3):
+        return(PAYOUT_DOWNS())
+
+    # special case #3: bacon goes with everything
+    if s1 == 9:
+        if s2 == s3:
+            return(MATCH_PAYOUT(s2))
+
+        # wildcard trip ups
+        if IS_UP(s2) and IS_UP(s3):
+            return(PAYOUT_UPS())
+
+        # wildcard trip downs
+        if IS_DOWN(s2) and IS_DOWN(s3):
+            return(PAYOUT_DOWNS())
+
+    if s2 == 9:
+        if s1 == s3:
+            return(MATCH_PAYOUT(s1))
+
+        # wildcard trip ups
+        if IS_UP(s1) and IS_UP(s3):
+            return(PAYOUT_UPS())
+
+        # wildcard trip downs
+        if IS_DOWN(s1) and IS_DOWN(s3):
+            return(PAYOUT_DOWNS())
+
+    if s3 == 9:
+        if s1 == s2:
+            return(MATCH_PAYOUT(s1))
+
+        # wildcard trip ups
+        if IS_UP(s1) and IS_UP(s2):
+            return(PAYOUT_UPS())
+
+        # wildcard trip downs
+        if IS_DOWN(s1) and IS_DOWN(s2):
+            return(PAYOUT_DOWNS())
+
+    # check double-bacon
+    if s2 == 9 and s3 == 9:
+        return(MATCH_PAYOUT(s1))
+    if s1 == 9 and s3 == 9:
+        return(MATCH_PAYOUT(s2))
+    if s1 == 9 and s2 == 9:
+        return(MATCH_PAYOUT(s3))
+
+    # no reward
+    return(0)
+
+def get_stops(rnd):
+    stops = array(REEL_COUNT())
+    i = 0
+    while i < REEL_COUNT():
+        stops[i] = mod(rnd, REEL_POSITIONS())
+        rnd = div(rnd, REEL_POSITIONS())
+        i += 1
+    return(stops, items=REEL_COUNT())
+
+macro REEL_0($pos):
+    # 2,1,7,1,2,7,6,7,3,10,1,6,1,7,3,4,3,2,4,5,0,6,10,5,6,5,8,3,0,9,5,4
+    byte($pos, 0x0201070102070607030a0106010703040302040500060a050605080300090504)
+
+macro REEL_1($pos):
+    # 6,0,10,3,6,7,9,2,5,2,3,1,5,2,1,10,4,5,8,4,7,6,0,1,7,6,3,1,5,9,7,4
+    byte($pos, 0x06000a0306070902050203010502010a04050804070600010706030105090704)
+
+macro REEL_2($pos):
+    # 1,4,2,7,5,6,4,10,7,5,2,0,6,4,10,1,7,6,3,0,5,7,2,3,9,3,5,6,1,8,1,3
+    byte($pos, 0x010402070506040a0705020006040a0107060300050702030903050601080103)
+
+macro LINES($line, $pos):
+    byte(3 * $line + $pos + 18, lines)
+
+def calc_reward(rnd, playing_lines):
+    result_0 = array(ROW_COUNT())
+    result_1 = array(ROW_COUNT())
+    result_2 = array(ROW_COUNT())
+
+    stops = self.get_stops(rnd, outsz=REEL_COUNT())
+    i = 0
+    while i < ROW_COUNT():
+        result_0[i] = REEL_0(mod(stops[0] + i, REEL_POSITIONS()))
+        result_1[i] = REEL_1(mod(stops[1] + i, REEL_POSITIONS()))
+        result_2[i] = REEL_2(mod(stops[2] + i, REEL_POSITIONS()))
+        i += 1
+
+    payout = 0
+    line = 0
+
+    # lines[0] = 0x01 01 01
+    # lines[1] = 0x00 00 00
+    # lines[2] = 0x02 02 02
+    # lines[3] = 0x00 01 02
+    # lines[4] = 0x02 01 00
+    lines = 0x0101010000000202020001020201
+    while line < playing_lines:
+        payout += self.calc_line(result_0[LINES(line, 0)], result_1[LINES(line, 1)], result_2[LINES(line, 2)])
+        line += 1
+
+    return(payout)
+
+def suicide():
+    if msg.sender == self.owner:
+        suicide(msg.sender)

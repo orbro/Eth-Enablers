@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html ng-app='mydapp'>
+<head>
+<title>Your DApp</title>
+<script src="lib/angular.min.js"></script>
+<script type="text/javascript" src="lib/promise.min.js"></script>
+<script type="text/javascript" src="lib/bignumber.min.js"></script>
+<script type="text/javascript" src="lib/web3.js"></script>
+</head>
+<body>
+
+<h1>Your DApp</h1>
+
+<div ng-controller="DappController">
+    <div>
+        User:
+        <span>{{user.address}}</span>
+    </div>
+    <div>
+        Balance:
+        <span>{{user.balance}}</span>
+    </div>
+    <hr />
+
+    <div>
+        Block #{{blockNumber}}:
+        <div>{{block | json}}</div>
+    </div>
+</div>
+
+<script>
+
+var app = angular.module('mydapp',[]);
+app.factory('web3', function() {
+    var web3 = require('web3');
+    web3.setProvider(new web3.providers.AutoProvider());
+    return web3;
+});
+
+app.controller("DappController", ['$scope', 'web3', function($scope, web3) {
+
+    $scope.user = {};
+    $scope.blockNumber = 0;
+
+    web3.eth.accounts.then(function(accounts) {
+        console.log("ACCOUNTS", accounts);
+        $scope.user.address = accounts[0];
+        $scope.$apply();
+        return web3.eth.balanceAt(accounts[0]);
+    }).then(function (balance, x) {
+        console.log("BALANCE", balance);
+        $scope.user.balance = web3.toDecimal(balance);
+        $scope.$apply();
+    }).catch(function (error) {
+        console.error('account/balance error: ', error);
+    });
+
+    $scope.loadBlock = function() {
+        web3.eth.number.then(function(blockNumber) {
+            console.log("blockNumber", blockNumber);
+            $scope.blockNumber = blockNumber;
+            $scope.$apply();
+            return web3.eth.block(blockNumber);
+        }).then(function(block) {
+            console.log("block", block);
+            $scope.block = block;
+            $scope.$apply();
+        });
+    };
+
+    web3.eth.watch('chain').changed(function(res) {
+        console.log("CHAIN UPDATED", res);
+        $scope.loadBlock();
+    });
+
+    $scope.loadBlock();
+
+}]);
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+[{
+    "name": "spin(int256)",
+    "type": "function",
+    "inputs": [{
+        "name": "bet",
+        "type": "int256"
+    }],
+    "outputs": []
+}, {
+    "name": "claim(int256)",
+    "type": "function",
+    "inputs": [{
+        "name": "round",
+        "type": "int256"
+    }],
+    "outputs": []
+}, {
+    "name": "get_round",
+    "type": "function",
+    "inputs": [{
+        "name": "round",
+        "type": "int256"
+    }],
+    "outputs": [{
+        "name": "out",
+        "type": "int256[]"
+    }]
+}, {
+    "name": "get_current_round()",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{
+        "name": "last_round",
+        "type": "int256"
+    }]
+}, {
+    "name": "get_stats()",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{
+        "name": "out",
+        "type": "int256[]"
+    }]
+}]
