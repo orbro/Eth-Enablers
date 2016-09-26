@@ -1,0 +1,88 @@
+//MongoDB Collection
+Contracts = new Mongo.Collection('contracts');
+
+//Initiate connection to Ethereum
+if (typeof web3 !== 'undefined') {
+    web3 = new Web3(web3.currentProvider);
+} else {
+    // set the provider you want from Web3.providers
+    web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
+}
+
+var account = web3.eth.accounts[0];
+
+//Need to run admin.setSolc("C:\\Program Files\\cpp-ethereum\\solc.exe" command
+//Need to run personal.unlockAccount(eth.accounts[0], "{your password}") command	
+	
+			<form class="contractDeploy">
+                Initial Supply: <input type="text" name="initialSupply"><br>
+                Token Name: <input type="text" name="tokenName"><br>
+                Decimal Units: <input type="text" name="decimalUnits"><br>
+                Token Identifier: <input type="text" name="tokenIdentifier"><br>
+                Claim Value: <input type="text" name="claimValue"><br>
+                Decimals: <input type="text" name="decimals"><br>
+                Total Supply: <input type="text" name="totalSupply"><br>
+                Contract Type: <input type="text" name="contractType"><br>
+                Covered Risk: <input type="text" name="coveredRisk"><br>
+                Deductible: <input type="text" name="deductible"><br>
+                Contract Currency: <input type="text" name="contractCurrency"><br>
+                Jurisdiction: <input type="text" name="jurisdiction"><br>
+                Premium: <input type="text" name="premium"><br>
+                Premium Type: <input type="text" name="premiumType"><br>
+                <input type="submit" value="submit" />
+            </form>
+	
+	//Form is in the HTML body - hence body.events
+	Template.body.events({
+		'submit .contractDeploy' : function(event) {
+
+			var initialSupply = event.target.initialSupply.value;
+			var tokenName = event.target.tokenName.value;
+			var decimalUnits = event.target.decimalUnits.value;
+			var tokenIdentifier = event.target.tokenIdentifier.value;
+			var claimValue = event.target.claimValue.value;
+			var decimals = event.target.decimals.value;
+			var totalSupply = event.target.totalSupply.value;
+			var contractType = event.target.contractType.value;
+			var coveredRisk = event.target.coveredRisk.value;
+			var deductible = event.target.deductible.value;
+			var contractCurrency = event.target.contractCurrency.value;
+			var jurisdiction = event.target.jurisdiction.value;
+			var premium = event.target.premium.value;
+			var premiumType = event.target.premiumType.value;
+			
+			var insuranceSource = "contract tokenRecipient { function receiveApproval(address _from, uint256 _value, address _token, bytes _extraData); } contract MyToken { string public standard = 'Token 0.1'; string public name; string public identifier; uint256 public claim; uint8 public decimals; uint256 public totalSupply; string public contractType; string public coveredRisk; string public deductible; string public contractCurrency; string public jurisdiction; string public premium; string public premiumType; mapping (address => uint256) public balanceOf; mapping (address => mapping (address => uint256)) public allowance; event Transfer(address indexed from, address indexed to, uint256 value); function MyToken( uint256 initialSupply, string tokenName, uint8 decimalUnits, string tokenIdentifier, uint256 claimValue, uint8 decimals, uint256 totalSupply, string contractType, string coveredRisk, string deductible, string contractCurrency, string jurisdiction, string premium, string premiumType ) { balanceOf[msg.sender] = initialSupply; totalSupply = initialSupply; name = tokenName; identifier = tokenIdentifier; decimals = decimalUnits; claim = claimValue; decimals = decimals; totalSupply = totalSupply; contractType = contractType; coveredRisk = coveredRisk; deductible = deductible; contractCurrency = contractCurrency; jurisdiction = jurisdiction; premium = premium; premiumType = premiumType; } function transfer(address _to, uint256 _value) { if (balanceOf[msg.sender] < _value) throw; if (balanceOf[_to] + _value < balanceOf[_to]) throw; balanceOf[msg.sender] -= _value; balanceOf[_to] += _value; Transfer(msg.sender, _to, _value); } function approveAndCall(address _spender, uint256 _value, bytes _extraData) returns (bool success) { allowance[msg.sender][_spender] = _value; tokenRecipient spender = tokenRecipient(_spender); spender.receiveApproval(msg.sender, _value, this, _extraData); return true; } function transferFrom(address _from, address _to, uint256 _value) returns (bool success) { if (balanceOf[_from] < _value) throw; if (balanceOf[_to] + _value < balanceOf[_to]) throw; if (_value > allowance[_from][msg.sender]) throw; balanceOf[_from] -= _value; balanceOf[_to] += _value; allowance[_from][msg.sender] -= _value; Transfer(_from, _to, _value); return true; } function () { throw; } }";
+			var insuranceCompiled = web3.eth.compile.solidity(insuranceSource);
+			var insuranceContract = web3.eth.contract(insuranceCompiled.MyToken.info.abiDefinition);
+			var insurance = insuranceContract.new(initialSupply, tokenName, decimalUnits, tokenIdentifier, claimValue, decimals, totalSupply, contractType, coveredRisk, deductive, contractCurrency, jurisdiction, premium, premiumType,{from:account, data: insuranceCompiled.MyToken.code, gas: 1000000}, function(e, contract){
+				if(!e) {
+
+					if(!contract.address) {
+						console.log("Contract transaction sent: TransactionHash: " + contract.transactionHash + " waiting to be mined...");
+
+					} else {
+						console.log("Contract mined! Address: " + contract.address);
+						console.log(contract);
+						var contractAddress = contract.address;
+					}
+				}	
+
+        contracts.insert({
+            initialSupply: initialSupply,
+            tokenName: tokenName,
+            decimalUnits: decimalUnits,
+            tokenIdentifier: tokenIdentifier,
+            claimValue: claimValue,
+            decimals: decimals,
+            totalSupply: totalSupply,
+            contractType: contractType,
+            coveredRisk: coveredRisk,
+            deductible: deductible,
+            contractCurrency: contractCurrency,
+            jurisdiction: jurisdiction,
+            premium: premium,
+            premiumType: premiumType,
+            createdAt: new Date()
+			})
+		}	
+	})
